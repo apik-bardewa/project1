@@ -1,0 +1,30 @@
+
+*{
+    margin: 0px;
+    padding: 0px;
+}
+body{
+   background-color: cadetblue;
+}
+
+.game{
+    height: 315px;
+    width: 315px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.box{
+    height: 100px;
+    width: 100px;
+    background-color: burlywood;
+    border-radius: 20px;
+    font-size: 50px;
+    color: brown;
+}
+#reset{
+    height: 30px;
+    border-radius: 5px;
+    background-color: black;
+    color: white;
+}
