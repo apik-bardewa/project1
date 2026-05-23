@@ -57,7 +57,7 @@ let checkwinner = () =>{
        if(position1!="" && position2!="" && position3!=""){
            if(position1==position2 && position2==position3){
             disablebox();
-            document.getElementById("output").innerHTML=`👏 Nice Play Congratulation!!.winner is player ${position1} 👏`;
+            document.getElementById("output").innerHTML=`👏Nice Play Congratulation!!.winner is player ${position1}👏`;
         
            }
        }
