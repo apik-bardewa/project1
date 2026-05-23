@@ -1,10 +1,9 @@
-name: Deploy Website
+name: Deploy Website (Stable)
 
 on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
 jobs:
@@ -20,145 +19,99 @@ jobs:
 
     steps:
       # =========================
-      # Checkout Repository
+      # Checkout Code
       # =========================
       - name: Checkout code
         uses: actions/checkout@v4
 
       # =========================
-      # Install sshpass
+      # Install Tools
       # =========================
-      - name: Install sshpass
+      - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq sshpass rsync
 
       # =========================
-      # Setup Apache Server
+      # Validate required files (IMPORTANT FIX)
       # =========================
-      - name: Configure Apache Server
+      - name: Validate project files
         run: |
-          set -e
+          echo "Checking required files..."
 
-          # Create Apache VirtualHost config
-          cat > /tmp/project.conf <<EOF
-          <VirtualHost *:$PORT>
+          test -f index.html || (echo "index.html missing" && exit 1)
+          test -f design.css || (echo "design.css missing" && exit 1)
+          test -f page1.js || (echo "page1.js missing" && exit 1)
 
-              ServerAdmin webmaster@localhost
-
-              DocumentRoot /home/$USER/project1/current
-
-              <Directory /home/$USER/project1/current>
-                  Options Indexes FollowSymLinks
-                  AllowOverride All
-                  Require all granted
-              </Directory>
-
-              ErrorLog \${APACHE_LOG_DIR}/project1-error.log
-              CustomLog \${APACHE_LOG_DIR}/project1-access.log combined
-
-          </VirtualHost>
-          EOF
-
-          # Upload config to server
-          sshpass -p "$PASS" scp \
-            -o StrictHostKeyChecking=no \
-            /tmp/project.conf \
-            $USER@$HOST:/tmp/project.conf
-
-          # Configure server
-          sshpass -p "$PASS" ssh \
-            -o StrictHostKeyChecking=no \
-            $USER@$HOST << EOF
-
-              set -e
-
-              # Install Apache if not installed
-              if ! dpkg -s apache2 >/dev/null 2>&1; then
-                sudo apt update -qq
-                sudo apt install -y -qq apache2
-              fi
-
-              # Create deployment directories
-              mkdir -p /home/$USER/project1/releases
-              mkdir -p /home/$USER/project1/shared
-
-              # Add Apache port if not exists
-              if ! grep -q "^Listen $PORT$" /etc/apache2/ports.conf; then
-                echo "$PASS" | sudo -S bash -c "echo 'Listen $PORT' >> /etc/apache2/ports.conf"
-              fi
-
-              # Move Apache config
-              echo "$PASS" | sudo -S mv /tmp/project.conf /etc/apache2/sites-available/project1.conf
-
-              # Enable site
-              if [ ! -L /etc/apache2/sites-enabled/project1.conf ]; then
-                echo "$PASS" | sudo -S a2ensite project1.conf
-              fi
-
-              # Enable rewrite module
-              echo "$PASS" | sudo -S a2enmod rewrite
-
-              # Permissions
-              chmod 755 /home/$USER
-              chmod -R 755 /home/$USER/project1
-
-              # Test Apache config
-              echo "$PASS" | sudo -S apache2ctl configtest
-
-              # Restart Apache
-              echo "$PASS" | sudo -S systemctl restart apache2
-
-          EOF
+          echo "All required files exist ✔"
 
       # =========================
-      # Deploy Project
+      # Deploy Files (FIXED)
       # =========================
-      - name: Deploy Website Files
+      - name: Deploy to Server
         run: |
           set -e
 
           RELEASE_DIR="release-${SHA:0:7}"
 
           echo "Creating release directory..."
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
+            $USER@$HOST "mkdir -p /home/$USER/project1/releases/$RELEASE_DIR"
 
-          sshpass -p "$PASS" ssh \
-            -o StrictHostKeyChecking=no \
-            $USER@$HOST "
-              mkdir -p /home/$USER/project1/releases/$RELEASE_DIR
-            "
+          echo "Uploading FULL project (IMPORTANT FIX)..."
 
-          echo "Uploading files..."
-
-          sshpass -p "$PASS" rsync -avz --delete \
-            -e 'ssh -o StrictHostKeyChecking=no' \
+          # FIX: upload EVERYTHING properly
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
             ./ \
             $USER@$HOST:/home/$USER/project1/releases/$RELEASE_DIR/
 
           echo "Switching current release..."
-
-          sshpass -p "$PASS" ssh \
-            -o StrictHostKeyChecking=no \
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
             $USER@$HOST "
               ln -sfn /home/$USER/project1/releases/$RELEASE_DIR /home/$USER/project1/current
             "
 
       # =========================
-      # Verify Deployment
+      # Fix Permissions (IMPORTANT)
+      # =========================
+      - name: Fix server permissions
+        run: |
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
+          $USER@$HOST "
+            chmod -R 755 /home/$USER/project1
+          "
+
+      # =========================
+      # Verify Deployment (SMART CHECK)
       # =========================
       - name: Verify Deployment
         run: |
           echo "Waiting for server..."
           sleep 5
 
-          STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://$HOST:$PORT)
+          URL="http://$HOST:$PORT"
 
-          echo "HTTP STATUS = $STATUS"
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" $URL)
+
+          echo "HTTP STATUS: $STATUS"
 
           if [ "$STATUS" != "200" ]; then
-            echo "Deployment Failed"
+            echo "❌ Deployment failed"
             exit 1
           fi
 
-          echo "Deployment Successful"
-          echo "Website URL: http://$HOST:$PORT"
+          # Check JS + CSS directly (IMPORTANT FIX)
+          CSS_STATUS=$(curl -o /dev/null -s -w "%{http_code}" $URL/design.css)
+          JS_STATUS=$(curl -o /dev/null -s -w "%{http_code}" $URL/page1.js)
+
+          echo "CSS STATUS: $CSS_STATUS"
+          echo "JS STATUS: $JS_STATUS"
+
+          if [ "$CSS_STATUS" != "200" ] || [ "$JS_STATUS" != "200" ]; then
+            echo "❌ CSS or JS missing on server"
+            exit 1
+          fi
+
+          echo "✅ Deployment Successful"
+          echo "Live URL: $URL"
