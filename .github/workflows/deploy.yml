@@ -1,4 +1,4 @@
-name: Deploy Website (Stable)
+name: Deploy Static Website (Stable)
 
 on:
   push:
@@ -18,14 +18,15 @@ jobs:
       SHA: ${{ github.sha }}
 
     steps:
+
       # =========================
-      # Checkout Code
+      # 1. Checkout Code
       # =========================
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       # =========================
-      # Install Tools
+      # 2. Install tools
       # =========================
       - name: Install dependencies
         run: |
@@ -33,9 +34,9 @@ jobs:
           sudo apt-get install -y -qq sshpass rsync
 
       # =========================
-      # Validate required files (IMPORTANT FIX)
+      # 3. Validate files BEFORE deploy
       # =========================
-      - name: Validate project files
+      - name: Validate project
         run: |
           echo "Checking required files..."
 
@@ -46,36 +47,45 @@ jobs:
           echo "All required files exist ✔"
 
       # =========================
-      # Deploy Files (FIXED)
+      # 4. Test SSH connection first
       # =========================
-      - name: Deploy to Server
+      - name: Test SSH
+        run: |
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
+          $USER@$HOST "echo 'SSH OK'"
+
+      # =========================
+      # 5. Deploy FULL project
+      # =========================
+      - name: Deploy files
         run: |
           set -e
 
           RELEASE_DIR="release-${SHA:0:7}"
 
-          echo "Creating release directory..."
+          echo "Creating release folder..."
+
           sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
             $USER@$HOST "mkdir -p /home/$USER/project1/releases/$RELEASE_DIR"
 
-          echo "Uploading FULL project (IMPORTANT FIX)..."
+          echo "Uploading full project (FIXED)..."
 
-          # FIX: upload EVERYTHING properly
           rsync -avz --delete \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ \
             $USER@$HOST:/home/$USER/project1/releases/$RELEASE_DIR/
 
           echo "Switching current release..."
+
           sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
             $USER@$HOST "
               ln -sfn /home/$USER/project1/releases/$RELEASE_DIR /home/$USER/project1/current
             "
 
       # =========================
-      # Fix Permissions (IMPORTANT)
+      # 6. Fix permissions
       # =========================
-      - name: Fix server permissions
+      - name: Fix permissions
         run: |
           sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
           $USER@$HOST "
@@ -83,9 +93,9 @@ jobs:
           "
 
       # =========================
-      # Verify Deployment (SMART CHECK)
+      # 7. Verify deployment (VERY IMPORTANT)
       # =========================
-      - name: Verify Deployment
+      - name: Verify deployment
         run: |
           echo "Waiting for server..."
           sleep 5
@@ -93,25 +103,18 @@ jobs:
           URL="http://$HOST:$PORT"
 
           STATUS=$(curl -o /dev/null -s -w "%{http_code}" $URL)
+          echo "Main page status: $STATUS"
 
-          echo "HTTP STATUS: $STATUS"
+          CSS=$(curl -o /dev/null -s -w "%{http_code}" $URL/design.css)
+          JS=$(curl -o /dev/null -s -w "%{http_code}" $URL/page1.js)
 
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Deployment failed"
+          echo "CSS status: $CSS"
+          echo "JS status: $JS"
+
+          if [ "$STATUS" != "200" ] || [ "$CSS" != "200" ] || [ "$JS" != "200" ]; then
+            echo "❌ Deployment failed (missing files or server issue)"
             exit 1
           fi
 
-          # Check JS + CSS directly (IMPORTANT FIX)
-          CSS_STATUS=$(curl -o /dev/null -s -w "%{http_code}" $URL/design.css)
-          JS_STATUS=$(curl -o /dev/null -s -w "%{http_code}" $URL/page1.js)
-
-          echo "CSS STATUS: $CSS_STATUS"
-          echo "JS STATUS: $JS_STATUS"
-
-          if [ "$CSS_STATUS" != "200" ] || [ "$JS_STATUS" != "200" ]; then
-            echo "❌ CSS or JS missing on server"
-            exit 1
-          fi
-
-          echo "✅ Deployment Successful"
+          echo "✅ Deployment successful"
           echo "Live URL: $URL"
