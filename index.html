@@ -4,12 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>tic tac toe</title>
-    <link rel="stylesheet" href="design.css" >
+
+    <!-- ================= INLINE CSS ================= -->
+    <style>
+        *{
+            margin: 0px;
+            padding: 0px;
+        }
+
+        body{
+            background-color: cadetblue;
+        }
+
+        .game{
+            height: 315px;
+            width: 315px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: auto;
+        }
+
+        .box{
+            height: 100px;
+            width: 100px;
+            background-color: burlywood;
+            border-radius: 20px;
+            font-size: 50px;
+            color: brown;
+            cursor: pointer;
+        }
+
+        #reset{
+            height: 30px;
+            border-radius: 5px;
+            background-color: black;
+            color: white;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
 </head>
+
 <body>
+
     <center>
         <h2 id="output"></h2>
         <h3>Tic Tac Toe</h3>
+
         <div class="game">
             <button class="box"></button>
             <button class="box"></button>
@@ -21,8 +63,74 @@
             <button class="box"></button>
             <button class="box"></button>
         </div><br>
+
         <button id="reset">Reset Game</button>
     </center>
-    <script src="page1.js"></script>
+
+    <!-- ================= INLINE JS ================= -->
+    <script>
+        let boxes = document.querySelectorAll(".box");
+        let reset = document.getElementById("reset");
+        let turn0 = true;
+
+        const win = [
+            [0,1,2],
+            [0,4,8],
+            [0,3,6],
+            [1,4,7],
+            [2,5,8],
+            [3,4,5],
+            [6,7,8],
+            [2,4,6],
+        ];
+
+        boxes.forEach((box) => {
+            box.addEventListener("click", () => {
+                console.log("btn is clicked!!!");
+
+                if(turn0){
+                    box.innerHTML = "0";
+                    turn0 = false;
+                } else {
+                    box.innerHTML = "X";
+                    turn0 = true;
+                }
+
+                box.disabled = true;
+                checkwinner();
+            });
+        });
+
+        let disablebox = () => {
+            for(box of boxes){
+                box.disabled = true;
+            }
+        }
+
+        reset.addEventListener("click", () => {
+            for(box of boxes){
+                box.innerText = "";
+                box.disabled = false;
+                document.getElementById("output").innerHTML = "";
+            }
+        });
+
+        let checkwinner = () => {
+            for(let pattern of win){
+                let position1 = boxes[pattern[0]].innerText;
+                let position2 = boxes[pattern[1]].innerText;
+                let position3 = boxes[pattern[2]].innerText;
+
+                if(position1 !== "" && position2 !== "" && position3 !== ""){
+                    if(position1 === position2 && position2 === position3){
+                        disablebox();
+                        document.getElementById("output").innerHTML =
+                        `👏 Nice Play Congratulation!!. winner is player ${position1} 👏`;
+                    }
+                }
+            }
+        }
+    </script>
+
 </body>
 </html>
